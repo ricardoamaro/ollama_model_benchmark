@@ -57,8 +57,10 @@ def parse_args():
     )
     return parser.parse_args()
 
+import concurrent.futures
+
 def check_model_vram(ollama_url, model_name, max_retries=5, delay=1, result_container=None):
-    print(f"## Checking VRAM for {model_name} (up to {max_retries} checks)...")
+    print(f"## Checking VRAM for {model_name} (up to {max_retries} checks, each with 60s timeout)...")
     vram_usage_bytes = None
     for vram_attempt in range(1, max_retries + 1):
         print(
@@ -66,8 +68,19 @@ def check_model_vram(ollama_url, model_name, max_retries=5, delay=1, result_cont
             end="",
             flush=True,
         )
-        running_vram_map = get_running_models_vram(ollama_url)
-        if model_name in running_vram_map:
+        running_vram_map = None
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(get_running_models_vram, ollama_url)
+            try:
+                running_vram_map = future.result(timeout=60)
+            except concurrent.futures.TimeoutError:
+                print(" VRAM check timed out after 60 seconds.")
+                running_vram_map = None
+            except Exception as e:
+                print(f" VRAM check error: {e}")
+                running_vram_map = None
+
+        if running_vram_map and model_name in running_vram_map:
             vram_usage_bytes = running_vram_map.get(model_name)
             if vram_usage_bytes is not None:
                 print(f" found. VRAM: {fmt_bytes(vram_usage_bytes)}")
@@ -103,13 +116,13 @@ def get_model_response(ollama_url, model_name, prompt):
         resp = requests.post(
             f"{ollama_url}/api/generate",
             json=payload,
-            timeout=30,
+            timeout=60,
         )
         resp.raise_for_status()
         data = resp.json()
         return data.get("response", "").strip()
     except Exception as e:
-        print(f"[Error getting response for prompt '{prompt[:30]}...' from {model_name}: {e}]")
+        print(f"[Error getting response for prompt '{prompt[:180]}...' from {model_name}: {e}]")
         return None
 
 def main():
@@ -416,7 +429,7 @@ def main():
     md_lines.append("```\n")
 
     md_lines.append(
-        "| Model | Self-ID | Disk Size | VRAM Usage | License | Developer (resp) | Params (K) | Context Len | Release Date | Load (s) | Table Gen (s) | Table Tok/s (eval) | Table FT (s) | Code Gen (s) | Code Tok/s (eval) | Code FT (s) | Context Passed | Table Match | Coding Passed |"
+        "| Model | Self-ID (resp) | Disk Size | VRAM Usage | License (metadata) | Developer (resp) | Params (K) | Context Len | Release Date | Load (s) | Table Gen (s) | Table Tok/s (eval) | Table FT (s) | Code Gen (s) | Code Tok/s (eval) | Code FT (s) | Context Test | Table Test | Coding Test |"
         
     )
     md_lines.append(
@@ -438,4 +451,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

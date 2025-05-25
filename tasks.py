@@ -218,7 +218,7 @@ def check_python_coding_task(code_answer: str):
     return True, "Passed"
 
 # Context window validation helpers
-def test_context_integrity(ollama_url, model_name, token_count, timeout=10, sleep_between=0, log_resp_file="logs/max_context_responses.log"):
+def test_context_integrity(ollama_url, model_name, token_count, timeout=60, sleep_between=0, log_resp_file="logs/max_context_responses.log"):
     """
     Test the model with a verifiable prompt using precise token counting.
     Returns a dict with 'success', 'truncated', and 'error' keys.
@@ -452,7 +452,7 @@ def test_context_window(
             print(f"  Testing {current_tokens} tokens...")
         
         res = test_context_integrity(
-            ollama_url, model_name, current_tokens, timeout=45, sleep_between=sleep_between, log_resp_file=log_resp_file
+            ollama_url, model_name, current_tokens, timeout=120, sleep_between=sleep_between, log_resp_file=log_resp_file
         )
         
         # Log the attempt
